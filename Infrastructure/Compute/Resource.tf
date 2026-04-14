@@ -1,15 +1,3 @@
-resource "google_compute_firewall" "allow_lb_health_check" {
-  name          = "allow-lb-health-check"
-  network       = "default"
-  direction     = "INGRESS"
-  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
-  allow {
-    protocol = "tcp"
-    ports    = ["8080"]
-  }
-  target_tags = ["cliniclarity-application"]
-}
-
 resource "google_service_account" "cliniclarity_service_account" {
   account_id   = "cliniclarity-app-service"
   display_name = "CliniClarity Application Identity"
@@ -25,6 +13,8 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
   name     = var.cloud_run
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
+
+  deletion_protection = false
 
   template {
     service_account = google_service_account.cliniclarity_service_account.email
@@ -76,6 +66,13 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
         value = "https://api.smith.langchain.com"
       }
     }
+  }
+  lifecycle {
+    ignore_changes = [
+      template.0.containers.0.image,
+      client,
+      client_version
+    ]
   }
 }
 
