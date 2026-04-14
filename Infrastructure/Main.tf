@@ -24,7 +24,7 @@ module "compute" {
   depends_on = [google_project_service.enable_apis]
 
   google_api_key    = var.google_api_key
-  pinecone_api_key  = pinecone_index.serverless.name
+  pinecone_api_key  = var.pinecone_api_key
   huggingface_token = var.hugging_face_token
   index             = pinecone_index.serverless.name
   langchain_api_key = var.langchain_api_key
