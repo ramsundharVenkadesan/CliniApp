@@ -3,7 +3,8 @@ locals {
     "compute.googleapis.com",
     "storage.googleapis.com",
     "cloudkms.googleapis.com",
-    "run.googleapis.com"
+    "run.googleapis.com", 
+    "iam.googleapis.com"
   ]
 } 
 
