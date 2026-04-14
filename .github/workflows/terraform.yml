@@ -5,19 +5,21 @@ on:
     branches:
       - main
     paths:
-      - 'Infrastructure/**' # Only runs if Terraform files change
+      - 'Infrastructure/**'
 
-# These permissions are required for Workload Identity Federation
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  terraform:
+  # ==========================================
+  # JOB 1: Plan the Infrastructure
+  # ==========================================
+  terraform-plan:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./Infrastructure # Tell the runner where the code is
+        working-directory: ./Infrastructure
 
     steps:
       - name: Checkout Code
@@ -36,8 +38,37 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        # We drop the -out=tfplan here because passing binary plan files 
+        # between ephemeral GitHub runners is notoriously buggy.
+        run: terraform plan 
+
+  # ==========================================
+  # JOB 2: Await Approval and Apply
+  # ==========================================
+  terraform-apply:
+    needs: terraform-plan       # This tells GitHub to wait for the plan to finish
+    environment: production     # This triggers the manual approval pause!
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Infrastructure
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Because this is a brand new runner, we must init again
+      - name: Terraform Init
+        run: terraform init
 
       - name: Terraform Apply
-        # In a real enterprise setup, you might want a manual approval step here!
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve
