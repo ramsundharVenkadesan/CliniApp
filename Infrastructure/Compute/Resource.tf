@@ -35,24 +35,33 @@ resource "google_compute_instance_template" "instance_template" {
     langchain_api_key = var.langchain_api_key
     huggingface_token = var.huggingface_token
     cache_bucket_name = var.cache_bucket_name
-    langchain_project = "CliniClarity-Dev"
   }
 
   metadata_startup_script = <<-EOT
     #!/bin/bash
-    # Create an .env file for the CliniGraph app
-    cat <<EOF > /opt/clinigraph/.env
-    GOOGLE_API_KEY=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/google_api_key)
-    INDEX_NAME=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/index_name)
-    PINECONE_API_KEY=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pinecone_api_key)
-    LANGCHAIN_API_KEY=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/langchain_api_key)
-    LANGCHAIN_PROJECT=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/langchain_project)
-    HUGGINGFACE_TOKEN=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/huggingface_token)
-    CACHE_BUCKET_NAME=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/cache_bucket_name)
-    DEEPEVAL_TELEMETRY_OPT_OUT=YES
-    LANGCHAIN_TRACING_V2=true
-    LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-    EOF
+
+    # 1. Install Docker on the Debian VM
+    apt-get update
+    apt-get install -y docker.io
+
+    # 2. Authenticate to Google Artifact Registry (if your image is private)
+    # Replace the URL with your actual Artifact Registry region if different
+    gcloud auth configure-docker us-central1-docker.pkg.dev
+
+    # 3. Execute the Docker container, injecting variables directly into memory
+    # NOTE: Replace the image path at the bottom with your actual Artifact Registry path
+    docker run -d -p 8080:8080 \
+      -e GOOGLE_API_KEY=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/google_api_key) \
+      -e INDEX_NAME=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/index_name) \
+      -e PINECONE_API_KEY=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pinecone_api_key) \
+      -e LANGCHAIN_API_KEY=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/langchain_api_key) \
+      -e LANGCHAIN_PROJECT=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/langchain_project) \
+      -e HUGGINGFACE_TOKEN=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/huggingface_token) \
+      -e CACHE_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/cache_bucket_name) \
+      -e DEEPEVAL_TELEMETRY_OPT_OUT="YES" \
+      -e LANGCHAIN_TRACING_V2="true" \
+      -e LANGCHAIN_ENDPOINT="https://api.smith.langchain.com" \
+      us-central1-docker.pkg.dev/cliniclarity/app-repo/cliniclarity-backend:latest
   EOT
 
 
