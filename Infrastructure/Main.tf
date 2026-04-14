@@ -3,30 +3,30 @@ locals {
     "compute.googleapis.com",
     "storage.googleapis.com",
     "cloudkms.googleapis.com",
-    "artifactregistry.googleapis.com"
+    "run.googleapis.com"
   ]
 }
 
 resource "google_project_service" "enable_apis" {
   for_each = toset(local.services)
-  project = "cliniclarity"
-  service = each.value
+  project  = "cliniclarity"
+  service  = each.value
 }
 
 module "storage" {
-  source = "./Storage"
+  source     = "./Storage"
   depends_on = [google_project_service.enable_apis]
 }
 
 
 module "compute" {
-  source = "./Compute"
+  source     = "./Compute"
   depends_on = [google_project_service.enable_apis]
 
-  google_api_key = var.google_api_key
-  pinecone_api_key = pinecone_index.serverless.name
+  google_api_key    = var.google_api_key
+  pinecone_api_key  = pinecone_index.serverless.name
   huggingface_token = var.hugging_face_token
-  index = pinecone_index.serverless.name
+  index             = pinecone_index.serverless.name
   langchain_api_key = var.langchain_api_key
   cache_bucket_name = module.storage.storage_bucket
 }
