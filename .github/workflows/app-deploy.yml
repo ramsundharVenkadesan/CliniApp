@@ -40,7 +40,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_PATH=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/my-repo/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          IMAGE_PATH=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cliniclarity-repository/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker build -t $IMAGE_PATH .
           docker push $IMAGE_PATH
 
