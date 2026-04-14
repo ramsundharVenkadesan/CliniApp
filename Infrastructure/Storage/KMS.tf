@@ -1,5 +1,5 @@
 resource "google_kms_key_ring" "key_ring" {
-  name = "cliniclarity-cache-keyring"
+  name = "cliniclarity-cache-keyring-v2"
   location = "us"
 }
 
