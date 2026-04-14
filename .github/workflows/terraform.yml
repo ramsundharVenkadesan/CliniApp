@@ -58,6 +58,11 @@ jobs:
     defaults:
       run:
         working-directory: ./Infrastructure
+    env:
+      TF_VAR_google_api_key: ${{ secrets.GOOGLE_API_KEY }}
+      TF_VAR_pinecone_api_key: ${{ secrets.PINECONE_API_KEY }}
+      TF_VAR_hugging_face_token: ${{ secrets.HUGGINGFACE_TOKEN }}
+      TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
 
     steps:
       - name: Checkout Code
