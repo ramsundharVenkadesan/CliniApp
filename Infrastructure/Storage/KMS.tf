@@ -1,5 +1,10 @@
+resource "random_id" "keyring_suffix" {
+  byte_length = 4
+}
+
+# 2. Attach the random string to the KeyRing name!
 resource "google_kms_key_ring" "key_ring" {
-  name = "cliniclarity-cache-keyring-v2"
+  name     = "cliniclarity-cache-keyring-${random_id.keyring_suffix.hex}"
   location = "us"
 }
 
