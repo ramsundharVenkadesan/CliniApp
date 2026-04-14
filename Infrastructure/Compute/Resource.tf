@@ -35,6 +35,7 @@ resource "google_compute_instance_template" "instance_template" {
     langchain_api_key = var.langchain_api_key
     huggingface_token = var.huggingface_token
     cache_bucket_name = var.cache_bucket_name
+    langchain_project = "CliniClarity-Dev"
   }
 
   metadata_startup_script = <<-EOT
