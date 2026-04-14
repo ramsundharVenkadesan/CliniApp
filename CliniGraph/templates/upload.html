@@ -38,6 +38,12 @@
     </style>
 </head>
 <body class="bg-apple-bgLight dark:bg-apple-bgDark transition-colors duration-500 min-h-screen flex items-center justify-center p-6 font-sans selection:bg-apple-blue selection:text-white">
+    <button onclick="logout()" class="fixed top-6 left-6 px-4 py-2.5 rounded-full bg-white/80 dark:bg-apple-grayDark/80 backdrop-blur-md shadow-sm border border-black/5 dark:border-white/10 text-[14px] font-semibold text-[#FF3B30] dark:text-[#FF453A] transition-transform hover:scale-105 active:scale-95 z-50 flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+    Sign Out & Purge Data
+</button>
 
     <button onclick="toggleTheme()" class="fixed top-6 right-6 p-3 rounded-full bg-white/80 dark:bg-apple-grayDark/80 backdrop-blur-md shadow-sm border border-black/5 dark:border-white/10 text-xl transition-transform hover:scale-105 active:scale-95 z-50">🌓</button>
 
@@ -128,137 +134,215 @@
         </div>
     </div>
 
-    <script>
-        function toggleTheme() {
-            document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+<script type="module">
+    // 1. Firebase Imports (Requires type="module" in the script tag)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+    // 2. Initialize Firebase
+    // REPLACE WITH YOUR ACTUAL FIREBASE CONFIG
+    const firebaseConfig = {
+    apiKey: "AIzaSyB_-D-tTMiiPGe-E9IlcS18uiMVM5xfHlA",
+    authDomain: "cliniclarity-ec517.firebaseapp.com",
+    projectId: "cliniclarity-ec517",
+    storageBucket: "cliniclarity-ec517.firebasestorage.app",
+    messagingSenderId: "208479831048",
+    appId: "1:208479831048:web:8a8b1babb4bc010a483dbd",
+    measurementId: "G-4L215SS548"
+  };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserToken = null;
+
+    // 3. The Security Gate: Kick them out if not logged in
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = "/login";
+        } else {
+            // Securely grab the JWT to send to FastAPI
+            currentUserToken = await user.getIdToken();
         }
-        if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+    });
 
-        function updateFileInfo() {
-            const input = document.getElementById('fileInput');
-            if (input.files.length > 0) {
-                document.getElementById('uploadContent').classList.add('hidden');
-                document.getElementById('fileSelected').classList.remove('hidden');
-                document.getElementById('fileName').innerText = input.files[0].name;
+    // 4. Expose UI functions to the global window so HTML can trigger them
+    window.logout = async function() {
+    try {
+        // 1. Tell the backend to purge the Pinecone data for this user
+        const response = await fetch('/summary/logout-purge', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentUserToken}`
             }
-        }
+        });
 
-        // SVG Icons for different states
-        const stepIcons = {
-            pending: `<div class="w-[20px] h-[20px] rounded-full border-2 border-[#E5E5EA] dark:border-[#3A3A3C]"></div>`,
-            active: `<svg class="w-6 h-6 animate-spin text-apple-blue" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="32" stroke-linecap="round" class="opacity-20"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path></svg>`,
-            completed: `<div class="w-6 h-6 rounded-full bg-apple-blue flex items-center justify-center"><svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></div>`
-        };
-
-        const statusMessages = {
-            'load': 'Reading document...',
-            'redact': 'Securing patient data...',
-            'ingestion': 'Analyzing clinical context...',
-            'summarize': 'Drafting final report...',
-            'hallucination': 'Verifying medical accuracy...'
-        };
-
-        function setListStepState(stepId, state) {
-            const el = document.getElementById(`step-${stepId}`);
-            if (!el) return;
-
-            const iconContainer = el.querySelector('.step-icon');
-            const textEl = el.querySelector('.step-text');
-
-            iconContainer.innerHTML = stepIcons[state];
-
-            if (state === 'pending') {
-                textEl.className = 'step-text text-[16px] font-medium text-[#8E8E93]';
-            } else {
-                textEl.className = 'step-text text-[16px] font-medium text-black dark:text-white';
-            }
-
-            if (state === 'active') {
-                document.getElementById('overallStatus').innerText = statusMessages[stepId] || 'Processing...';
-            }
+        if (!response.ok) {
+            console.error("Data purge failed, but proceeding with logout.");
         }
 
-        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
-            event.preventDefault();
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
+        // 2. Clear local session cache
+        sessionStorage.removeItem("cliniclarity_report");
 
-            const runEval = document.getElementById('runEvalToggle').checked;
+        // 3. Sign out of Firebase
+        await signOut(auth);
 
-            // Define the sequence excluding "start" and "end" which aren't shown to the user
-            const nodeSequence = runEval
-                ? ['load', 'redact', 'ingestion', 'summarize', 'hallucination']
-                : ['load', 'redact', 'ingestion', 'summarize'];
+        // Redirect happens automatically via your onAuthStateChanged listener
+    } catch (error) {
+        console.error("Logout Error:", error);
+        // Fallback: Sign out anyway if the purge fails
+        await signOut(auth);
+    }
+};
 
-            if (runEval) {
-                document.getElementById('step-hallucination').classList.remove('hidden');
-            }
+    window.toggleTheme = function() {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    }
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
 
-            // Initialize all steps to pending
-            nodeSequence.forEach(step => setListStepState(step, 'pending'));
+    window.updateFileInfo = function() {
+        const input = document.getElementById('fileInput');
+        if (input.files.length > 0) {
+            document.getElementById('uploadContent').classList.add('hidden');
+            document.getElementById('fileSelected').classList.remove('hidden');
+            document.getElementById('fileName').innerText = input.files[0].name;
+        }
+    }
 
-            document.getElementById('formContainer').style.display = 'none';
-            document.getElementById('loadingScreen').classList.remove('hidden');
-            document.getElementById('loadingScreen').classList.add('flex');
+    // 5. The Session Cache: Restore report immediately if user refreshes
+    document.addEventListener("DOMContentLoaded", () => {
+        const cachedReport = sessionStorage.getItem("cliniclarity_report");
+        if (cachedReport) {
+            document.open();
+            document.write(cachedReport);
+            document.close();
+        }
+    });
 
-            let lastUpdateTime = Date.now();
+    // SVG Icons for different states
+    const stepIcons = {
+        pending: `<div class="w-[20px] h-[20px] rounded-full border-2 border-[#E5E5EA] dark:border-[#3A3A3C]"></div>`,
+        active: `<svg class="w-6 h-6 animate-spin text-apple-blue" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="32" stroke-linecap="round" class="opacity-20"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path></svg>`,
+        completed: `<div class="w-6 h-6 rounded-full bg-apple-blue flex items-center justify-center"><svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></div>`
+    };
 
-            // Activate first step
-            setListStepState(nodeSequence[0], 'active');
+    const statusMessages = {
+        'load': 'Reading document...',
+        'redact': 'Securing patient data...',
+        'ingestion': 'Analyzing clinical context...',
+        'summarize': 'Drafting final report...',
+        'hallucination': 'Verifying medical accuracy...'
+    };
 
-            try {
-                const formData = new FormData(this);
-                const response = await fetch('/summary/', { method: 'POST', body: formData });
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = "";
+    function setListStepState(stepId, state) {
+        const el = document.getElementById(`step-${stepId}`);
+        if (!el) return;
 
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
+        const iconContainer = el.querySelector('.step-icon');
+        const textEl = el.querySelector('.step-text');
 
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n\n');
-                    buffer = lines.pop();
+        iconContainer.innerHTML = stepIcons[state];
 
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.replace(/^data: /, ''));
+        if (state === 'pending') {
+            textEl.className = 'step-text text-[16px] font-medium text-[#8E8E93]';
+        } else {
+            textEl.className = 'step-text text-[16px] font-medium text-black dark:text-white';
+        }
 
-                            if (data.type === 'status') {
-                                const finishedNode = data.step;
+        if (state === 'active') {
+            document.getElementById('overallStatus').innerText = statusMessages[stepId] || 'Processing...';
+        }
+    }
 
-                                // Ignore backend structural nodes like 'start' or 'end'
-                                if (finishedNode === 'start') continue;
+    // 6. Form Submission and Stream Handling
+    document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
 
-                                await new Promise(r => setTimeout(r, Math.max(0, 800 - (Date.now() - lastUpdateTime))));
+        const runEval = document.getElementById('runEvalToggle').checked;
 
-                                if (nodeSequence.includes(finishedNode)) {
-                                    setListStepState(finishedNode, 'completed');
+        const nodeSequence = runEval
+            ? ['load', 'redact', 'ingestion', 'summarize', 'hallucination']
+            : ['load', 'redact', 'ingestion', 'summarize'];
 
-                                    const nextIndex = nodeSequence.indexOf(finishedNode) + 1;
-                                    if (nextIndex < nodeSequence.length) {
-                                        setListStepState(nodeSequence[nextIndex], 'active');
-                                    }
+        if (runEval) {
+            document.getElementById('step-hallucination').classList.remove('hidden');
+        }
+
+        nodeSequence.forEach(step => setListStepState(step, 'pending'));
+
+        document.getElementById('formContainer').style.display = 'none';
+        document.getElementById('loadingScreen').classList.remove('hidden');
+        document.getElementById('loadingScreen').classList.add('flex');
+
+        let lastUpdateTime = Date.now();
+        setListStepState(nodeSequence[0], 'active');
+
+        try {
+            const formData = new FormData(this);
+
+            // --- CRITICAL UPDATE: Attach the Authorization Header ---
+            const response = await fetch('/summary/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Authorization': `Bearer ${currentUserToken}`
+                }
+            });
+            // --------------------------------------------------------
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.replace(/^data: /, ''));
+
+                        if (data.type === 'status') {
+                            const finishedNode = data.step;
+                            if (finishedNode === 'start') continue;
+
+                            await new Promise(r => setTimeout(r, Math.max(0, 800 - (Date.now() - lastUpdateTime))));
+
+                            if (nodeSequence.includes(finishedNode)) {
+                                setListStepState(finishedNode, 'completed');
+                                const nextIndex = nodeSequence.indexOf(finishedNode) + 1;
+                                if (nextIndex < nodeSequence.length) {
+                                    setListStepState(nodeSequence[nextIndex], 'active');
                                 }
-                                lastUpdateTime = Date.now();
-
-                            } else if (data.type === 'complete') {
-                                document.getElementById('overallStatus').innerText = 'Done!';
-                                await new Promise(r => setTimeout(r, 600)); // Brief pause to show completion
-                                document.open(); document.write(data.html); document.close();
-                            } else if (data.type === 'error') {
-                                alert("Error: " + data.message);
-                                location.reload(); // Quick reset on error
                             }
+                            lastUpdateTime = Date.now();
+
+                        } else if (data.type === 'complete') {
+                            document.getElementById('overallStatus').innerText = 'Done!';
+
+                            // --- CRITICAL UPDATE: Save the Session Cache ---
+                            sessionStorage.setItem("cliniclarity_report", data.html);
+                            // -----------------------------------------------
+
+                            await new Promise(r => setTimeout(r, 600));
+                            document.open(); document.write(data.html); document.close();
+                        } else if (data.type === 'error') {
+                            alert("Error: " + data.message);
+                            location.reload();
                         }
                     }
                 }
-            } catch (error) {
-                alert("Connection error."); location.reload();
             }
-        });
-    </script>
+        } catch (error) {
+            alert("Connection error."); location.reload();
+        }
+    });
+</script>
 </body>
 </html>

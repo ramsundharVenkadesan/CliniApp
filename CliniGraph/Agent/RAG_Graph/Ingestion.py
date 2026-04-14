@@ -1,4 +1,3 @@
-import datetime # Import Date-Time module
 import hashlib # Import Hashing Library
 import os # Import OS module
 from langchain_text_splitters import RecursiveCharacterTextSplitter # Import class to split documents into chunks
@@ -10,13 +9,15 @@ from presidio_analyzer import AnalyzerEngine # Import class to analyze the input
 from presidio_anonymizer import AnonymizerEngine # Import class to redact the analyzed fields in the document
 from Agent.RAG_Graph.State import GraphState # Import class to store state between each node
 from typing import Dict, Any # Import Type-Hints package
-from pathlib import Path # Import Path library
-
-current_dir = Path(__file__).parent # Get current directory
-ACTIVITY_LOG_FILE = current_dir.parent.parent / "activity.log" # Go two levels up the order to access the logging file
+import logging
+from google.cloud import storage
+import datetime
 
 load_dotenv() # Invoke function to load all the API keys
-SUMMARY_CACHE = {} # Local Caching Dictionary
+
+storage_client = storage.Client()
+CACHE_BUCKET = os.environ.get('CACHE_BUCKET_NAME', 'cliniclarity-doc-cache')
+bucket = storage_client.bucket(CACHE_BUCKET)
 
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", # Embedding model developed by Google
                                                output_dimensionality=1536, # Dimensionality of the embedding
@@ -32,16 +33,22 @@ async def load_pdf(state:GraphState) -> Dict[str, Any]: # Node that accepts the 
 
     doc_hash = hashlib.md5(raw_pdf_text.encode('utf-8')).hexdigest() # Create a MD5 hash of the raw text
 
-    if doc_hash in SUMMARY_CACHE: # Check if the hash is in the dictionary
-        with open(ACTIVITY_LOG_FILE, mode='a', encoding='utf-8') as logging_file: # Open logging file in append mode
-            print(f"[{datetime.datetime.now()}] --- ♻️ CACHE HIT: Duplicate Document Detected ---", file=logging_file) # Write cache hit to the logging file
+    blob = bucket.get_blob(f"{doc_hash}.txt")
 
-        return { # Return a dictionary object
-            'documents': docs, # The loaded documents
-            'pdf_text': raw_pdf_text, # Raw PDF text
-            'summary': SUMMARY_CACHE[doc_hash],  # Retrieve the old summary from memory
-            'is_cached': True  # Flag to tell the router to skip ingestion and generation
-        }
+    if blob.exists(): # Check if the hash is in the dictionary
+        now = datetime.datetime.now(datetime.timezone.utc)
+        file_age_seconds = (now - blob.time_created).total_seconds()
+
+        if file_age_seconds <= 900:
+            cached_summary = blob.download_as_text()
+            logging.info(f"♻️ CACHE HIT: Retrieved summary ({int(file_age_seconds)} seconds old).")
+            return { # Return a dictionary object
+                'documents': docs, # The loaded documents
+                'pdf_text': raw_pdf_text, # Raw PDF text
+                'summary': cached_summary,  # Retrieve the old summary from memory
+                'is_cached': True  # Flag to tell the router to skip ingestion and generation
+            }
+        else: logging.info(f"⏳ CACHE EXPIRED: Summary is {int(file_age_seconds / 60)} minutes old. Reprocessing.")
 
     return {'documents': docs, 'pdf_text': raw_pdf_text, 'doc_hash': doc_hash, 'is_cached': False} # Update the state dictionary with the loaded document
 
@@ -65,20 +72,24 @@ async def ingestion(state:GraphState) -> Dict[str, Any]: # Node to inject redact
     try: # Attempt to connect and ingest chunks into Pinecone
 
         cleaned_docs = state.get('documents') # Retrieve the list of redacted documents from state-dictionary
+        user_id = state.get('user_id')
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50) # Text-Splitter to split the documents into chunks
         chunks = splitter.split_documents(cleaned_docs) # Split the redacted documents into chunks
+        for chunk in chunks:
+            if chunk.metadata is None:
+                chunk.metadata = {}
+            chunk.metadata['user_id'] = user_id
 
         try: # Attempt to clear any existing chunks from the database
             vector_database.delete(delete_all=True) # Delete or clean any existing chunks in the vector-database
         except Exception as delete_error: # Error in deleting existing chunks in the vector-database
-            print(f"Skipped deletion (index likely empty). Details: {delete_error}") # Index is empty
+            logging.info(f"Skipped deletion (index likely empty). Details: {delete_error}") # Index is empty
 
         PineconeVectorStore.from_documents(documents=chunks, embedding=embedding_model, index_name=os.environ.get("INDEX_NAME")) # Initialize a vector-database with chunks and embedding model
         return {'documents': chunks, 'status': True} # Update the state dictionary with loaded chunks and status to true because ingestion was successful
 
     except Exception as e: # Exception block to catch any ingestion errors
-        with open(ACTIVITY_LOG_FILE, mode="a") as file: # Open the Log-File in append mode
-            file.write(f"[{datetime.datetime.now()}] Ingestion Error: {e}\n") # Write the ingestion error to the file
+        logging.error(f"Ingestion error: {e}")
         return {'status': False} # Update status-property to False because ingestion failed
 
 

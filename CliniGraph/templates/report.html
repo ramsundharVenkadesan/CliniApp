@@ -53,17 +53,24 @@
         body { -webkit-font-smoothing: antialiased; }
         @keyframes pulseDot { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
         .typing-dot { animation: pulseDot 1.4s infinite ease-in-out both; }
-
-        /* Hidden scrollbar for sleek Mac look */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-apple-bgLight dark:bg-apple-bgDark transition-colors duration-500 min-h-screen p-4 md:p-8 font-sans selection:bg-apple-blue selection:text-white">
 
+    <button onclick="logout()" class="fixed top-6 left-6 px-4 py-2.5 rounded-full bg-white/80 dark:bg-apple-grayDark/80 backdrop-blur-md shadow-sm border border-black/5 dark:border-white/10 text-[14px] font-semibold text-[#FF3B30] dark:text-[#FF453A] transition-transform hover:scale-105 active:scale-95 z-50 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+        Sign Out
+    </button>
+
+    <button onclick="startNewAnalysis()" class="fixed top-6 right-20 px-4 py-3 rounded-full bg-apple-blue text-white shadow-sm font-medium text-sm transition-transform hover:scale-105 active:scale-95 z-50">
+        + New Report
+    </button>
+
     <button onclick="toggleTheme()" class="fixed top-6 right-6 p-3 rounded-full bg-white/80 dark:bg-apple-grayDark/80 backdrop-blur-md shadow-sm border border-black/5 dark:border-white/10 text-xl transition-transform hover:scale-105 active:scale-95 z-50">🌓</button>
 
-    <div class="max-w-[1400px] mx-auto mt-2 md:mt-6">
+    <div class="max-w-[1400px] mx-auto mt-12 md:mt-16">
 
         <div class="flex items-center gap-4 mb-8 px-2">
              <div class="w-12 h-12 bg-apple-blue text-white rounded-[1rem] text-2xl flex items-center justify-center shadow-sm">🩺</div>
@@ -73,7 +80,6 @@
         <div class="flex flex-col lg:flex-row gap-6 items-start">
 
             <article class="flex-1 w-full bg-apple-cardLight dark:bg-apple-cardDark backdrop-blur-3xl rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.2)] border border-white/50 dark:border-white/10 p-8 md:p-12 transition-all">
-
                 <div class="flex items-center gap-2 mb-8 p-2 pr-4 bg-white dark:bg-[#2C2C2E] rounded-full border border-black/5 dark:border-white/5 w-fit shadow-sm">
                     <div class="h-6 w-6 rounded-full bg-apple-green flex items-center justify-center">
                         <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
@@ -93,7 +99,6 @@
 
             <aside class="w-full lg:w-[400px] xl:w-[450px] shrink-0 sticky top-6 z-10">
                 <section class="bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-3xl rounded-[2rem] p-6 text-black dark:text-white shadow-[0_8px_40px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.2)] border border-white/50 dark:border-white/10 flex flex-col h-auto max-h-[calc(100vh-3rem)]">
-
                     <header class="mb-6 px-2">
                         <h3 class="text-[22px] font-semibold flex items-center gap-3">Medical Assistant</h3>
                         <p class="text-apple-textMuted mt-1 text-[15px] leading-snug">Ask follow-up questions about labs, definitions, or clinical trials.</p>
@@ -114,24 +119,79 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
                         </button>
                     </div>
-
                 </section>
             </aside>
-
         </div>
     </div>
 
-    <script>
-        function toggleTheme() {
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+        const currentDocHash = "{{ doc_hash }}";
+
+        // REPLACE WITH YOUR ACTUAL FIREBASE CONFIG
+        const firebaseConfig = {
+    apiKey: "AIzaSyB_-D-tTMiiPGe-E9IlcS18uiMVM5xfHlA",
+    authDomain: "cliniclarity-ec517.firebaseapp.com",
+    projectId: "cliniclarity-ec517",
+    storageBucket: "cliniclarity-ec517.firebasestorage.app",
+    messagingSenderId: "208479831048",
+    appId: "1:208479831048:web:8a8b1babb4bc010a483dbd",
+    measurementId: "G-4L215SS548"
+  };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        let currentUserToken = null;
+
+        // AUTHENTICATION GATE
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                window.location.href = "/login";
+            } else {
+                currentUserToken = await user.getIdToken();
+            }
+        });
+
+        // ATTACH FUNCTIONS TO WINDOW
+        window.logout = async function() {
+            try {
+                // We append the doc_hash to the URL as a query parameter
+                const response = await fetch(`/summary/logout-purge?doc_hash=${currentDocHash}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentUserToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    console.log("Zero-Retention Purge Complete.");
+                }
+
+                // Clear local browser cache and sign out
+                sessionStorage.removeItem("cliniclarity_report");
+                await signOut(auth);
+
+            } catch (error) {
+                console.error("Purge Error:", error);
+                await signOut(auth);
+            }
+        };
+
+        window.toggleTheme = function() {
             const html = document.documentElement;
             html.classList.toggle('dark');
             localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
-        }
+        };
         if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+
+        window.startNewAnalysis = function() {
+            sessionStorage.removeItem("cliniclarity_report");
+            window.location.href = "/";
+        };
 
         const currentModelSelection = "{{ llm_selection }}";
 
-        async function askAgent() {
+        window.askAgent = async function() {
             const question = document.getElementById('userQuestion').value;
             const btn = document.getElementById('askBtn');
             const box = document.getElementById('answerBox');
@@ -152,7 +212,10 @@
             try {
                 const response = await fetch('/question/', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUserToken}`
+                    },
                     body: JSON.stringify({ question: question, llm_selection: currentModelSelection })
                 });
 
@@ -175,10 +238,10 @@
                 btn.disabled = false;
                 document.getElementById('userQuestion').value = '';
             }
-        }
+        };
 
         document.getElementById("userQuestion").addEventListener("keypress", function(event) {
-          if (event.key === "Enter") { event.preventDefault(); document.getElementById("askBtn").click(); }
+          if (event.key === "Enter") { event.preventDefault(); window.askAgent(); }
         });
     </script>
 </body>

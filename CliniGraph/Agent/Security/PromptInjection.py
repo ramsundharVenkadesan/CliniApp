@@ -1,11 +1,4 @@
-import datetime
 from transformers import pipeline
-from pathlib import Path
-
-current_dir = Path(__file__).parent
-
-# 2. Go TWO levels up by chaining .parent twice
-ACTIVITY_LOG_FILE = current_dir.parent.parent / "activity.log"
 
 try:
     print("🛡️ Loading ProtectAI Prompt Injection Defender...")
@@ -19,8 +12,6 @@ try:
     print("✅ Security Defender Loaded.")
 
 except Exception as e:
-    with open(ACTIVITY_LOG_FILE, mode="a") as file:
-        file.write(f"[{datetime.datetime.now()}] 🚨 Security Model Failed to Load: {e}\n")
     print(f"🚨 Security Model Failed to Load: {e}")
 
 
@@ -34,9 +25,6 @@ async def is_prompt_injection(query: str) -> bool:
 
     label = result[0].get('label') # Label will either be INJECTION or SAFE
     score = result[0].get('score') # The score is between 0 and 1
-
-    with open(ACTIVITY_LOG_FILE, mode="a") as file:
-        file.write(f"[{datetime.datetime.now()}]🛡️ Security Scan -> Status: {label} | Confidence: {score:.4f}")
 
     print(f"🛡️ Security Scan -> Status: {label} | Confidence: {score:.4f}") # Log the security scan for your audit trail
 

@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder # Import Prompt-Template class
 from dotenv import load_dotenv # Import function to retrieve environment variables
 from langchain.chat_models import init_chat_model # Import function to initialize a chat model
-from pydantic import BaseModel, Field # Import Pydantic data-validation package
+from Agent.Reflection.State import AuditEvaluator # Import the Auditor
 
 load_dotenv() # Invoke function to retrieve API keys
 
@@ -42,10 +42,6 @@ generation_prompt = ChatPromptTemplate.from_messages(
 )
 
 model = init_chat_model(model='gemini-3.1-flash-lite-preview', model_provider='google_genai', temperature=0.0) # Initialize and create a Gemini-3-Flash-Lite model with no creativity
-
-class AuditEvaluator(BaseModel): # Custom schema class to properly audit the response
-    is_approved:bool = Field(description="True if the summary has no jargon and no hallucinations.") # Field that ensures the final summary has no medical jargon
-    corrective_memo:str = Field(description="If is_approved is False, list the exact bullet points to fix. If True, output 'PASSED'.") # Field to produce corrections when the summary is not passed
 
 evaluator_model = model.with_structured_output(AuditEvaluator) # The model must generate response that matches the schema
 

@@ -1,10 +1,7 @@
 from langchain.chat_models import init_chat_model # Import function to create and initialize a model
 from pydantic import BaseModel, Field # Import Pydantic data-validation package
-from pathlib import Path # Import Path library
-import datetime # Import Date-Time package
+import logging
 
-current_dir = Path(__file__).parent # Get current directory
-ACTIVITY_LOG_FILE = current_dir.parent.parent / "activity.log" # Go two levels up the order to access the logging file
 
 dynamic_model = init_chat_model(model="gemini-3-flash-preview", temperature=0.0, model_provider="google_genai") # Create a Gemini-3-Flash model with no creativity
 
@@ -47,9 +44,6 @@ async def validate_medical_document(pdf_text: str, model=dynamic_model) -> bool:
     validator_chain = model.with_structured_output(DocumentValidation) # The model's response must fit the schema defined above
     result = await validator_chain.ainvoke(validation_prompt) # Asynchronous invocation of the LLM
 
-    with open(ACTIVITY_LOG_FILE, "a") as logging_file: # Open logging file in append mode
-        print(f"[{datetime.datetime.now()}]  Validator Result: Medical={result.is_medical} (Conf: {result.confidence_score}", file=logging_file) # Write validation result to the logging file
-
-    print(f"🔍 Validator Result: Medical={result.is_medical} (Conf: {result.confidence_score})") # Final result displayed to console
+    logging.info(f"🔍 Validator Result: Medical={result.is_medical} (Conf: {result.confidence_score}) | Reason: {result.reasoning}")
 
     return result.is_medical and result.confidence_score > 0.8 # Final to determine whether checks have passed

@@ -1,11 +1,25 @@
-import markdown, tempfile, json
-from fastapi import APIRouter, UploadFile, HTTPException, Request, Form
+import markdown, tempfile, json, os
+from fastapi import APIRouter, UploadFile, HTTPException, Request, Form, Depends
 from fastapi.responses import StreamingResponse
 from starlette.templating import Jinja2Templates
 from Agent.RAG_Graph.Workflow import rag_app # Import the complied graph
 from pypdf import PdfReader
 from Agent.Security.Validation import *
 from transformers import pipeline
+from google.cloud import storage
+from firebase_admin import auth # Added for token verification
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+storage_client = storage.Client()
+
+security = HTTPBearer()
+
+def verify_token(credentials:HTTPAuthorizationCredentials=Depends(security)):
+    """Middleware to verify the user's Firebase JWT."""
+    try:
+        decoded_token = auth.verify_id_token(credentials.credentials)
+        return decoded_token['uid']  # Returns the unique user ID
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
 
 rag_router = APIRouter(tags=["Summary"], prefix="/summary")
 templates = Jinja2Templates(directory="templates")
@@ -34,7 +48,8 @@ async def scan_for_prompt_injection(text: str) -> bool:
 async def generate_summary(
     request: Request,
     file: UploadFile,
-    run_eval: bool = Form(False) # <-- Added: Catches the checkbox state (defaults to False if unchecked)
+    run_eval: bool = Form(False), # <-- Added: Catches the checkbox state (defaults to False if unchecked)
+    user_id:str = Depends(verify_token)
 ):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Invalid file type.")
@@ -74,7 +89,8 @@ async def generate_summary(
                     "documents": [],
                     "context": [],
                     "summary": "",
-                    "run_eval": run_eval
+                    "run_eval": run_eval,
+                    "user_id": user_id
                 }
 
                 current_state = initial_state.copy()
@@ -85,6 +101,13 @@ async def generate_summary(
 
                 if current_state.get("status"): # Graph execution is done
                     draft_response = current_state["summary"]
+                    doc_hash = current_state.get("doc_hash")
+                    if doc_hash and not current_state.get('is_cached'):
+                        storage_client = storage.Client()
+                        bucket_name = os.environ.get("CACHE_BUCKET_NAME", "cliniclarity-doc-cache")
+                        cache_blob = storage_client.bucket(bucket_name).blob(f"{doc_hash}.txt")
+                        cache_blob.upload_from_string(draft_response)
+                        logging.info(f"💾 Saved new summary to 15-minute cache: {doc_hash}.txt")
                     html_markdown = markdown.markdown(draft_response) # Extract the final generated summary from the state-graph
 
                     template_response = templates.TemplateResponse("report.html", {
@@ -99,11 +122,46 @@ async def generate_summary(
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'message': 'Error in pipeline'})}\n\n"
 
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            except Exception as e: yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            finally:
+                if os.path.exists(pdf_path): os.remove(pdf_path)
 
-        # 3. Return the stream
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"File processing error: {str(e)}")
+
+from Agent.RAG_Graph.Ingestion import vector_database
+
+
+@rag_router.post("/logout-purge")
+async def logout_purge(
+        doc_hash: str = None,  # <-- Accepts the hash as a query parameter
+        user_id: str = Depends(verify_token)
+):
+    """
+    Deletes all vectors associated with the user_id from Pinecone
+    and wipes the specific document summary from Cloud Storage.
+    """
+    try:
+        # 1. Purge Pinecone (Metadata Filtered)
+        vector_database.delete(filter={"user_id": {"$eq": user_id}})
+        logging.info(f"🧹 Pinecone vectors purged for user: {user_id}")
+
+        # 2. Purge GCS Cache File
+        if doc_hash:
+            bucket_name = os.environ.get("CACHE_BUCKET_NAME", "cliniclarity-doc-cache")
+            # We target the specific .txt file for this document
+            blob = storage_client.bucket(bucket_name).blob(f"{doc_hash}.txt")
+
+            if blob.exists():
+                blob.delete()
+                logging.info(f"🗑️ GCS Cache Purged: {doc_hash}.txt")
+            else:
+                logging.info(f"ℹ️ No GCS file found for hash: {doc_hash}")
+
+        return {"status": "success", "message": "Session data fully purged."}
+
+    except Exception as e:
+        logging.error(f"Purge Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Purge failed: {str(e)}")

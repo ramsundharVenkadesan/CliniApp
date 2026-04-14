@@ -13,10 +13,11 @@ import os # Import package to access OS level tools
 from Agent.Security.PromptInjection import is_prompt_injection # Import function to check for prompt injection
 from Agent.Logging.CallBack import CallBackHandler # Import class to track model changes
 import sys
+from pathlib import Path
 
-# ✅ Correctly targets the script inside the container
-current_dir = os.path.dirname(os.path.abspath(__file__))
-pubmed_path = "/Users/ram/Downloads/CliniGraph/MCP/PubMed.py"
+
+current_dir = Path(__file__).resolve().parent
+pubmed_path = current_dir.parent / "MCP" / "PubMed.py"
 load_dotenv() # Invoke function to load API keys
 
 callback_handler = CallBackHandler() # Handler to track LLM changes
@@ -25,10 +26,6 @@ callback_handler = CallBackHandler() # Handler to track LLM changes
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", output_dimensionality=1536, google_api_key=os.environ.get("GOOGLE_API_KEY")) # Embedding model developed by Google
 vector_database = PineconeVectorStore(embedding=embedding_model, index_name=os.environ.get("INDEX_NAME")) # Create an instance representing a Pinecone vector database
 
-retriever = vector_database.as_retriever(search_kwargs={'k': 5}) # Retriever object configured to retrieve 5 most relevant documents based on an input query
-retriever_tool = create_retriever_tool(retriever=retriever, # Wrap the retriever object into an executable tool
-                                       name='clini_clarity_documents', # Equip the tool with a name
-                                       description="Search for information within the patient's specific medical report. Use this first!") # Agent is able to invoke the object as a tool
 
 custom_instructions = """You are a Compassionate Patient Advocate. 
 Your final answer MUST be at a 6th-grade reading level. 
@@ -36,14 +33,19 @@ Explain complex medical terms simply.
 """ # Guardrail instructions to ensure output is simple
 
 mcp_server_parameters = StdioServerParameters(command=sys.executable, # Runtime environment of the MCP server
-                                              args=[pubmed_path]) # Configuration to find and launch the local PubMed server
+                                              args=[str(pubmed_path)]) # Configuration to find and launch the local PubMed server
 
 
-async def ask_question(query:str, model: str, provider: str): # Asynchronous function
+async def ask_question(query:str, model: str, provider: str, user_id:str): # Asynchronous function
     is_safe = await is_prompt_injection(query)
     if is_safe:
         yield "Security Alert: This query violates system safety protocols and has been blocked."
         return
+    retriever = vector_database.as_retriever(search_kwargs={'k': 5, 'filter': {"user_id": {
+        "$eq": user_id}}})  # Retriever object configured to retrieve 5 most relevant documents based on an input query
+    retriever_tool = create_retriever_tool(retriever=retriever,  # Wrap the retriever object into an executable tool
+                                           name='clini_clarity_documents',  # Equip the tool with a name
+                                           description="Search for information within the patient's specific medical report. Use this first!")  # Agent is able to invoke the object as a tool
 
     async with stdio_client(mcp_server_parameters) as (read, write):
         async with ClientSession(read_stream=read, write_stream=write) as session:

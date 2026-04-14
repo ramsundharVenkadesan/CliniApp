@@ -14,6 +14,7 @@ def format_documents(docs) -> str: # Generic function to format retrieved docume
 
 async def summarize(state:GraphState) -> Dict[str, Any]: # Node to summarize the retrieved documents
     if state.get('status'): # Retrieve the ingestion status from the state dictionary
+        user_id = state.get('user_id')
         dynamic_model = init_chat_model(model="gemini-3-flash-preview", temperature=0.0, model_provider="google_genai") # Create and initialize a LLM model
 
         system_prompt = """
@@ -27,7 +28,7 @@ async def summarize(state:GraphState) -> Dict[str, Any]: # Node to summarize the
         3. Maintain Anonymity: Do not output any names, dates, or facility locations if they accidentally bypassed the redaction pipeline.""" # Developer instructions to ensure the model stays on course
 
         prompt_template = ChatPromptTemplate.from_template(template=Retrieval_Prompt.medical_summary_template).partial(system_prompt=system_prompt) # Load the prompt string with developer instructions
-        retriever = vector_database.as_retriever(search_kwargs={"k": 5}) # Retriever object configured to retrieve 5 most relevant documents based on an input query
+        retriever = vector_database.as_retriever(search_kwargs={"k": 5, "filter":{'user_id':{'$eq':user_id}}}) # Retriever object configured to retrieve 5 most relevant documents based on an input query
         retrieved_docs = retriever.invoke(input="Summarize the report") # Invoke the retriever object with an input query
 
         context_list = [doc.page_content for doc in retrieved_docs] # Iterate through a list of retrieved documents and extract their content
