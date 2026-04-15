@@ -3,10 +3,11 @@ locals {
     "compute.googleapis.com",
     "storage.googleapis.com",
     "cloudkms.googleapis.com",
-    "run.googleapis.com", 
-    "iam.googleapis.com"
+    "run.googleapis.com",
+    "firebase.googleapis.com",      # The Firebase linking API
+    "identitytoolkit.googleapis.com"
   ]
-} // 
+}
 
 resource "google_project_service" "enable_apis" {
   for_each = toset(local.services)
@@ -30,4 +31,8 @@ module "compute" {
   index             = pinecone_index.serverless.name
   langchain_api_key = var.langchain_api_key
   cache_bucket_name = module.storage.storage_bucket
+
+  google_oauth_client_id = var.google_oauth_client_id
+  google_oauth_client_secret = var.google_oauth_client_secret
 }
+
