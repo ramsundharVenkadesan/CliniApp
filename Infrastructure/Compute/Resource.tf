@@ -22,7 +22,7 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
     service_account = google_service_account.cliniclarity_service_account.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/cliniclarity/my-repo/cliniclarity-app:latest"
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
 
       ports {
         container_port = 8080
