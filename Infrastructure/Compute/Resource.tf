@@ -9,6 +9,8 @@ resource "google_project_iam_member" "firebase_admin" {
   member  = "serviceAccount:${google_service_account.cliniclarity_service_account.email}"
 }
 
+
+
 resource "google_cloud_run_v2_service" "cliniclarity_api" {
   name     = var.cloud_run
   location = var.region
@@ -20,7 +22,7 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
     service_account = google_service_account.cliniclarity_service_account.email
 
     containers {
-      image = "us-docker.pkg.dev/cloudrun/container/hello"
+      image = "${var.region}-docker.pkg.dev/cliniclarity/my-repo/cliniclarity-app:latest"
 
       ports {
         container_port = 8080
@@ -61,6 +63,16 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
         name  = "LANGCHAIN_TRACING_V2"
         value = "true"
       }
+
+      env {
+        name  = "FIREBASE_API_KEY"
+        value = data.google_firebase_web_app_config.app_config.api_key
+      }
+      env {
+        name  = "FIREBASE_AUTH_DOMAIN"
+        value = data.google_firebase_web_app_config.app_config.auth_domain
+      }
+
       env {
         name  = "LANGCHAIN_ENDPOINT"
         value = "https://api.smith.langchain.com"
