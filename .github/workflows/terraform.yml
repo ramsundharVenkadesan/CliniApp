@@ -26,6 +26,8 @@ jobs:
       TF_VAR_pinecone_api_key: ${{ secrets.PINECONE_API_KEY }}
       TF_VAR_hugging_face_token: ${{ secrets.HUGGINGFACE_TOKEN }}
       TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+      TF_VAR_google_oauth_client_id: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      TF_VAR_google_oauth_client_secret: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
 
     steps:
       - name: Checkout Code
@@ -63,6 +65,8 @@ jobs:
       TF_VAR_pinecone_api_key: ${{ secrets.PINECONE_API_KEY }}
       TF_VAR_hugging_face_token: ${{ secrets.HUGGINGFACE_TOKEN }}
       TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+      TF_VAR_google_oauth_client_id: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      TF_VAR_google_oauth_client_secret: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
 
     steps:
       - name: Checkout Code
