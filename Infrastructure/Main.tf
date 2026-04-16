@@ -5,7 +5,7 @@ locals {
     "cloudkms.googleapis.com",
     "run.googleapis.com",
     "firebase.googleapis.com",      # The Firebase linking API
-    "identitytoolkit.googleapis.com"
+    "identitytoolkit.googleapis.com" //
   ]
 }
 
