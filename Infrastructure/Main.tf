@@ -9,6 +9,8 @@ locals {
   ]
 }
 
+
+
 resource "google_project_service" "enable_apis" {
   for_each = toset(local.services)
   project  = "cliniclarity"
