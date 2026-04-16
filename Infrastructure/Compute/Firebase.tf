@@ -1,3 +1,8 @@
+import {
+  to = module.compute.google_identity_platform_config.auth_config
+  id = "projects/cliniclarity"
+}
+
 resource "google_firebase_project" "cliniclarity_firebase" {
   provider = google-beta
   project  = "cliniclarity"
