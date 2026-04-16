@@ -1,11 +1,7 @@
 name: Deploy Infrastructure
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'Infrastructure/**'
+  workflow_dispatch:
 
 permissions:
   id-token: write
