@@ -81,5 +81,9 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      # --- ADD THIS STEP ---
+      - name: Force State Sync
+        run: terraform import google_identity_platform_config.auth_config projects/cliniclarity || true
+
       - name: Terraform Apply
         run: terraform apply -auto-approve
