@@ -1,14 +1,14 @@
-resource "google_service_account" "cliniclarity_service_account" {
-  account_id   = "cliniclarity-app-service"
-  display_name = "CliniClarity Application Identity"
-}
-
 resource "google_project_iam_member" "firebase_admin" {
   project = "cliniclarity"
   role    = "roles/firebaseauth.admin"
-  member  = "serviceAccount:${google_service_account.cliniclarity_service_account.email}"
+  member  = "serviceAccount:${var.service_account_email}"
 }
 
+resource "google_project_iam_member" "secret_accessor" {
+  project = "cliniclarity"
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${var.service_account_email}"
+}
 
 
 resource "google_cloud_run_v2_service" "cliniclarity_api" {
@@ -19,10 +19,18 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
   deletion_protection = false
 
   template {
-    service_account = google_service_account.cliniclarity_service_account.email
+    service_account = var.service_account_email
+
+    vpc_access {
+      network_interfaces {
+        network = google_compute_network.main_vpc.id
+        subnetwork = google_compute_subnetwork.private_subnet.id
+      }
+      egress = "ALL_TRAFFIC"
+    }
 
     containers {
-      image = "us-docker.pkg.dev/cloudrun/container/hello"
+      image = "${var.region}-docker.pkg.dev/cliniclarity/my-repo/cliniclarity-app:latest"
 
       ports {
         container_port = 8080
@@ -30,7 +38,12 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
 
       env {
         name  = "GOOGLE_API_KEY"
-        value = var.google_api_key
+        value_source {
+          secret_key_ref {
+            secret = google_secret_manager_secret.api_keys["google-api-key"].secret_id
+            version = "latest"
+          }
+        }
       }
 
       env {
@@ -39,7 +52,12 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
       }
       env {
         name  = "LANGCHAIN_API_KEY"
-        value = var.langchain_api_key
+        value_source {
+          secret_key_ref {
+            secret = google_secret_manager_secret.api_keys["langchain-api-key"].secret_id
+            version = "latest"
+          }
+        }
       }
       env {
         name  = "LANGCHAIN_PROJECT"
@@ -48,8 +66,23 @@ resource "google_cloud_run_v2_service" "cliniclarity_api" {
 
       env {
         name  = "HUGGINGFACE_TOKEN"
-        value = var.huggingface_token
+        value_source {
+          secret_key_ref {
+            secret = google_secret_manager_secret.api_keys["huggingface-token"].secret_id
+            version = "latest"
+          }
+        }
       }
+      env {
+        name  = "PINECONE_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret = google_secret_manager_secret.api_keys["pinecone-api-key"].secret_id
+            version = "latest"
+          }
+        }
+      }
+
       env {
         name  = "CACHE_BUCKET_NAME"
         value = var.cache_bucket_name
