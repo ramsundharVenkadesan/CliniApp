@@ -17,3 +17,7 @@ variable "registry_id" {
   type = string
   default = "cliniclarity-repository"
 }
+
+variable "service_account_email" {
+  type = string
+}
