@@ -3,7 +3,7 @@ terraform {
 
   backend "gcs" {
     bucket = "cliniclarity-tf-state"
-    prefix  = "terraform/state"
+    prefix = "terraform/state"
   }
 
   required_providers {

@@ -1,5 +1,5 @@
 resource "pinecone_index" "serverless" {
-  name = var.pinecone
+  name      = var.pinecone
   dimension = 1536
   spec = {
     serverless = {
